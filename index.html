@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>The Claude Game 🍪🐱</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #eef2ff;
+  text-align: center;
+  margin: 0;
+  padding: 10px;
+}
+
+#game-area {
+  position: relative;
+  width: 95vw;
+  height: 65vh;
+  margin: 10px auto;
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid #ccc;
+}
+
+#claude {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#claude img {
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+}
+
+.item {
+  position: absolute;
+  font-size: 32px;
+}
+
+#hud {
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+#storyBox {
+  display: none;
+  background: white;
+  border-radius: 12px;
+  padding: 15px;
+  margin: 10px auto;
+  max-width: 650px;
+}
+
+button {
+  padding: 10px 18px;
+  font-size: 1rem;
+}
+</style>
+</head>
+
+<body>
+<h1>The Claude Game 🍪🐱🚓🌳</h1>
+
+<div id="storyBox">
+  <p id="storyText"></p>
+</div>
+
+<div id="game-area" tabindex="0">
+  <div id="claude"><img src="images/claude.png" alt="Claude" width="40" draggable="false"></div>
+</div>
+
+<div id="hud">
+Level: <span id="level">1</span> |
+🍪 <span id="cookies">0</span>/5 |
+🐱 <span id="cats">0</span>/5 |
+Lives: <span id="lives">3</span>
+</div>
+
+<button id="startBtn">Start</button>
+<button id="restartBtn" style="display:none; margin-left:10px;">Restart</button>
+
+<script>
+// ===== BASIC STATE =====
+let level = 1;
+let lives = 3;
+let cookies = 0;
+let cats = 0;
+let playing = false;
+
+const player = { x: 100, y: 100, speed: 12 };
+let items = [];
+let friends = [];
+let itemSpeed = 2;
+
+const rulesText = `HOW TO PLAY
+
+• Collect 5 🍪 Cookies and 5 🐱 Meow Meows to complete each level.
+• Avoid 🚓 Police and 🌳 National Trust — they cost you a life.
+• 🧑‍🦱 Hugo and 🧔 Sam are your friends — touching them gives you +1 life.
+• Lives carry across levels.
+• Use the arrow keys to move Claude.`;
+
+const stories = {
+  1: "Claude has met the love of his life — the Meow Meow to his Cookie. She lives far away in Slave Lake. Help Claude collect Cookies and Meow Meows to bring her home.",
+  2: "Claude joins the army to raise funds, but is stationed in Cyprus. Help him collect Cookies and Meow Meows so he can escape military life.",
+  3: "Claude leaves the army and joins the National Trust, collecting dead animals. Help him escape.",
+  4: "Claude escapes — but is stranded on the A2 in the rain. Help him get away.",
+  5: "A kind stranger helps Claude. He joins the police, but it becomes too political. Help him leave.",
+  6: "Claude becomes a security guard and lays down the law. Help him earn enough to bring Meow Meow home.",
+  7: "Claude flies to Slave Lake, but they are trapped in a nail salon. Help them escape.",
+  8: "The flight home goes wrong — the pilot faints! Help Claude land the plane safely."
+};
+
+// ===== ELEMENTS =====
+const gameArea = document.getElementById("game-area");
+const claude = document.getElementById("claude");
+const startBtn = document.getElementById("startBtn");
+const restartBtn = document.getElementById("restartBtn");
+const storyBox = document.getElementById("storyBox");
+const storyText = document.getElementById("storyText");
+
+const levelEl = document.getElementById("level");
+const livesEl = document.getElementById("lives");
+const cookiesEl = document.getElementById("cookies");
+const catsEl = document.getElementById("cats");
+
+// ===== BUTTONS =====
+restartBtn.addEventListener("click", () => {
+  level = 1;
+  lives = 3;
+  cookies = 0;
+  cats = 0;
+  restartBtn.style.display = "none";
+  showStory();
+});
+
+startBtn.addEventListener("click", () => {
+  if (storyBox.style.display === "block") {
+    storyBox.style.display = "none";
+    startLevel();
+    playing = true;
+    gameLoop();
+  } else {
+    showStory();
+  }
+});
+
+function showStory() {
+  playing = false;
+  if (level > 8) {
+    alert("Congratulations! Claude and Meow Meow are safely in the UK ❤️");
+    return;
+  }
+  storyText.innerText = (level === 1 ? rulesText + "\n\n" : "") + stories[level];
+  storyBox.style.display = "block";
+}
+
+function startLevel() {
+  clearItems();
+  cookies = 0;
+  cats = 0;
+
+  player.x = gameArea.clientWidth / 2;
+  player.y = gameArea.clientHeight / 2;
+  updatePlayer();
+
+  itemSpeed = 1 + level * 0.5;
+
+  spawnItems(5, "cookie");
+  spawnItems(5, "cat");
+  spawnItems(level, "bad");
+  spawnFriends();
+
+  updateHUD();
+}
+
+function updateHUD() {
+  levelEl.innerText = level;
+  livesEl.innerText = lives;
+  cookiesEl.innerText = cookies;
+  catsEl.innerText = cats;
+}
+
+function updatePlayer() {
+  claude.style.left = player.x + "px";
+  claude.style.top = player.y + "px";
+}
+
+window.addEventListener("keydown", e => {
+  if (!playing) return;
+  e.preventDefault();
+
+  if (e.key === "ArrowUp") player.y -= player.speed;
+  if (e.key === "ArrowDown") player.y += player.speed;
+  if (e.key === "ArrowLeft") player.x -= player.speed;
+  if (e.key === "ArrowRight") player.x += player.speed;
+
+  player.x = Math.max(0, Math.min(gameArea.clientWidth - 40, player.x));
+  player.y = Math.max(0, Math.min(gameArea.clientHeight - 40, player.y));
+
+  updatePlayer();
+});
+
+function spawnItems(count, type) {
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement("div");
+    el.className = "item";
+    el.innerText = type === "cookie" ? "🍪" : type === "cat" ? "🐱" : Math.random() < 0.5 ? "🚓" : "🌳";
+
+    const obj = {
+      el,
+      type,
+      x: Math.random() * (gameArea.clientWidth - 40),
+      y: Math.random() * (gameArea.clientHeight - 40),
+      vx: (Math.random() * 2 - 1) * itemSpeed,
+      vy: (Math.random() * 2 - 1) * itemSpeed
+    };
+
+    el.style.left = obj.x + "px";
+    el.style.top = obj.y + "px";
+    gameArea.appendChild(el);
+    items.push(obj);
+  }
+}
+
+function spawnFriends() {
+  if (Math.random() < 0.4) createFriend("Hugo");
+  if (Math.random() < 0.25) createFriend("Sam");
+}
+
+function createFriend(name) {
+  const el = document.createElement("div");
+  el.className = "item";
+  el.innerHTML = name === "Hugo"
+    ? '<img src="images/hugo.png" width="32" draggable="false">'
+    : '<img src="images/sam.png" width="32" draggable="false">';
+
+  const obj = {
+    el,
+    type: "friend",
+    name,
+    x: Math.random() * (gameArea.clientWidth - 40),
+    y: Math.random() * (gameArea.clientHeight - 40),
+    vx: (Math.random() * 2 - 1) * itemSpeed,
+    vy: (Math.random() * 2 - 1) * itemSpeed
+  };
+
+  el.style.left = obj.x + "px";
+  el.style.top = obj.y + "px";
+  gameArea.appendChild(el);
+  friends.push(obj);
+}
+
+function clearItems() {
+  items.forEach(i => i.el.remove());
+  friends.forEach(f => f.el.remove());
+  items = [];
+  friends = [];
+}
+
+function gameLoop() {
+  if (!playing) return;
+
+  items.forEach(obj => {
+    obj.x += obj.vx;
+    obj.y += obj.vy;
+
+    if (obj.x <= 0 || obj.x >= gameArea.clientWidth - 40) obj.vx *= -1;
+    if (obj.y <= 0 || obj.y >= gameArea.clientHeight - 40) obj.vy *= -1;
+
+    obj.el.style.left = obj.x + "px";
+    obj.el.style.top = obj.y + "px";
+
+    if (checkCollision(claude, obj.el)) handleCollision(obj);
+  });
+
+  friends.forEach(obj => {
+    obj.x += obj.vx;
+    obj.y += obj.vy;
+
+    if (obj.x <= 0 || obj.x >= gameArea.clientWidth - 40) obj.vx *= -1;
+    if (obj.y <= 0 || obj.y >= gameArea.clientHeight - 40) obj.vy *= -1;
+
+    obj.el.style.left = obj.x + "px";
+    obj.el.style.top = obj.y + "px";
+
+    if (checkCollision(claude, obj.el)) handleFriend(obj);
+  });
+
+  requestAnimationFrame(gameLoop);
+}
+
+function checkCollision(a, b) {
+  const r1 = a.getBoundingClientRect();
+  const r2 = b.getBoundingClientRect();
+  return r1.left < r2.right && r1.right > r2.left && r1.top < r2.bottom && r1.bottom > r2.top;
+}
+
+function handleCollision(obj) {
+  obj.el.remove();
+  items = items.filter(i => i !== obj);
+
+  if (obj.type === "cookie") cookies++;
+  if (obj.type === "cat") cats++;
+  if (obj.type === "bad") lives--;
+
+  updateHUD();
+
+  if (lives <= 0) {
+    alert("The visa was unsuccessful. Claude faces a lifetime in Slave Lake.");
+    restartBtn.style.display = "inline-block";
+    playing = false;
+    return;
+  }
+
+  if (cookies >= 5 && cats >= 5) {
+    level++;
+    playing = false;
+    showStory();
+  }
+}
+
+function handleFriend(obj) {
+  obj.el.remove();
+  friends = friends.filter(f => f !== obj);
+  lives++;
+  updateHUD();
+}
+</script>
+</body>
+</html>
